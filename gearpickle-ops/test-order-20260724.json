@@ -1,0 +1,18 @@
+{
+  "order_id": "TEST-20260724-001",
+  "status": "completed",
+  "platform": "CJ",
+  "items": [
+    {
+      "product_id": "GP-123",
+      "name": "Pickleball Paddle",
+      "quantity": 1,
+      "price": 49.99
+    }
+  ],
+  "tracking": {
+    "sub_id": "gearpickle-test",
+    "source": "content"
+  },
+  "timestamp": "2026-07-24T08:03:13.884Z"
+}

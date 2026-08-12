@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "allowed_keywords": [
+    "tiến độ",
+    "report",
+    "status",
+    "check hôm nay",
+    "hôm nay thế nào",
+    "đã xong chưa",
+    "/report",
+    "/status",
+    "/progress"
+  ],
+  "fallback_behavior": "silence",
+  "description": "Guard layer for Telegram inbound messages: only respond to explicit, safe keywords. All others are ignored silently to prevent loop."
+}

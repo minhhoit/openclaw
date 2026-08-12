@@ -1,0 +1,9 @@
+brand_first: true
+revenue_guardrails:
+  min_affiliate_margin_percent: 12
+  max_content_competition: 10  # max YouTube videos
+  min_daily_revenue_target_usd: 5.0
+automation:
+  auto_post: true
+  auto_optimize: true
+  auto_report: true

@@ -1,0 +1,24 @@
+{
+  "agent_role": "GearPickle Operator",
+  "owned_workspace": "gearpickle-ops/",
+  "order_sources": [
+    {
+      "type": "cj",
+      "path": "gearpickle-ops/cj-exports/*.csv",
+      "required_fields": ["order_id", "status", "items", "sub_id"]
+    },
+    {
+      "type": "shopify",
+      "path": "gearpickle-ops/shopify-orders/*.json",
+      "required_fields": ["id", "financial_status", "line_items", "tags"]
+    }
+  ],
+  "compliance_policy": {
+    "cj": "policy/cj-affiliate-2026.md",
+    "shopify": "policy/shopify-terms-2026.md"
+  },
+  "git_sync": {
+    "pre_operation": "git -C \"C:\\Users\\Admins\\.openclaw\\workspace\\repos\\gearpickle\" pull --rebase",
+    "post_operation": "git -C \"C:\\Users\\Admins\\.openclaw\\workspace\\repos\\gearpickle\" commit -am \"[AUTO] Daily ops $(Get-Date -Format 'yyyyMMdd-HHmm')\" --allow-empty && git push"
+  }
+}

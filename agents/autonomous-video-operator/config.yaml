@@ -1,0 +1,16 @@
+model:
+  primary: qwen/qwen-plus
+  fallback: openai/gpt-5.5
+  timeoutSeconds: 45
+pipeline:
+  select_product: true
+  generate_script: true
+  create_voiceover: "capcut-ai"
+  render_video: "canva-magic"
+  publish: "youtube+tiktok"
+policy:
+  no_face: true
+  long_tail_keywords_only: true
+  min_margin_percent: 12
+  max_videos_per_day: 1
+  cost_cap_usd_per_day: 0.0

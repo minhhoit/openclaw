@@ -1,0 +1,4 @@
+model:
+  primary: qwen/qwen-plus
+  fallback: openai/gpt-5.5
+  timeoutSeconds: 45
