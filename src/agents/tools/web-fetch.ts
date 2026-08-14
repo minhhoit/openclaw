@@ -601,6 +601,15 @@ async function normalizeProviderWebFetchPayload(params: {
   tookMs: number;
 }): Promise<Record<string, unknown>> {
   const payload = isRecord(params.payload) ? params.payload : {};
+  const status =
+    typeof payload.status === "number" && Number.isFinite(payload.status)
+      ? Math.floor(payload.status)
+      : 200;
+  if (status < 200 || status >= 300) {
+    throw new Error(
+      `Web fetch failed (${status}): ${params.providerId} returned an unsuccessful HTTP status.`,
+    );
+  }
   const rawText = typeof payload.text === "string" ? payload.text : "";
   const wrapped = await spillWebFetchContent(
     rawText,
@@ -614,10 +623,6 @@ async function normalizeProviderWebFetchPayload(params: {
       : wrapped.rawLength;
   const url = params.requestedUrl;
   const finalUrl = normalizeProviderFinalUrl(payload.finalUrl) ?? url;
-  const status =
-    typeof payload.status === "number" && Number.isFinite(payload.status)
-      ? Math.max(0, Math.floor(payload.status))
-      : 200;
   const contentType =
     typeof payload.contentType === "string" ? normalizeContentType(payload.contentType) : undefined;
   const title = typeof payload.title === "string" ? wrapWebFetchField(payload.title) : undefined;

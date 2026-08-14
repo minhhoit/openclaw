@@ -223,6 +223,41 @@ describe("firecrawl tools", () => {
     expect((failure as Error).message.length).toBeLessThan(5_000);
   });
 
+  it("does not hide target recovery behind a local scrape cache", async () => {
+    const targetStatuses = [404, 200];
+    const fetchMock = vi.fn(async () => {
+      const statusCode = targetStatuses.shift();
+      return Response.json({
+        success: true,
+        data: {
+          markdown: `target status ${statusCode}`,
+          metadata: {
+            sourceURL: "https://example.com/firecrawl-target-recovery",
+            statusCode,
+          },
+        },
+      });
+    });
+    global.fetch = fetchMock as typeof fetch;
+    const params = {
+      cfg: {
+        plugins: {
+          entries: { firecrawl: { config: { webFetch: { apiKey: "firecrawl-owner-test" } } } },
+        },
+      } as OpenClawConfig,
+      url: "https://example.com/firecrawl-target-recovery",
+      extractMode: "markdown" as const,
+    };
+
+    const first = await runActualFirecrawlScrape(params);
+    const second = await runActualFirecrawlScrape(params);
+
+    expect(first.status).toBe(404);
+    expect(second.status).toBe(200);
+    expect(second.cached).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it.each(["search", "scrape"] as const)(
     "propagates exact %s cancellation into the actual guarded fetch signal",
     async (operation) => {

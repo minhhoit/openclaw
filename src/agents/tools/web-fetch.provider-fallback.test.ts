@@ -162,6 +162,52 @@ describe("web_fetch provider fallback normalization", () => {
     }
   });
 
+  it.each([404, 500])(
+    "rejects provider target status %i without caching it as a successful fetch",
+    async (status) => {
+      global.fetch = withFetchPreconnect(
+        vi.fn(async () => {
+          throw new Error("network failed");
+        }),
+      );
+      const providerExecute = vi.fn(async () => ({
+        status,
+        text: `provider target returned ${status}`,
+      }));
+      resolveWebFetchDefinitionMock.mockReturnValue({
+        provider: { id: "firecrawl" },
+        definition: {
+          description: "firecrawl",
+          parameters: {},
+          execute: providerExecute,
+        },
+      });
+      const tool = createWebFetchTool({
+        config: {
+          tools: { web: { fetch: { cacheTtlMinutes: 15 } } },
+        } as OpenClawConfig,
+        sandboxed: false,
+      });
+      const args = { url: `https://example.com/provider-target-${status}` };
+
+      const outcomes: string[] = [];
+      for (const callId of ["first", "second"]) {
+        try {
+          await tool?.execute?.(`provider-target-${status}-${callId}`, args);
+          outcomes.push("resolved");
+        } catch (error) {
+          outcomes.push(error instanceof Error ? error.message : String(error));
+        }
+      }
+
+      expect(outcomes).toEqual([
+        `Web fetch failed (${status}): firecrawl returned an unsuccessful HTTP status.`,
+        `Web fetch failed (${status}): firecrawl returned an unsuccessful HTTP status.`,
+      ]);
+      expect(providerExecute).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it("preserves short source-truncated provider results through cache and presentation", async () => {
     global.fetch = withFetchPreconnect(
       vi.fn(async () => {
