@@ -4601,6 +4601,9 @@ export const en: TranslationMap = {
       additionalMatches: "Search results remain. Use a longer id prefix.",
     },
     commandResults: {
+      companion: {
+        usage: "Usage: `/btw <question>` — asks the session companion without touching the run.",
+      },
       startingNewThread: "Starting new session...",
       resettingThread: "Resetting session...",
       stoppingCurrentRun: "Stopping current run...",
@@ -4967,6 +4970,8 @@ export const en: TranslationMap = {
       arguments: "Command arguments",
       menu: "Slash commands",
       optionCount: "{count} options",
+      argNeedsValue: "Enter a value to continue",
+      argNoMatch: "No option matches {value}",
       clearDescription: "Clear chat history",
       redirectDescription: "Abort and restart with a new message",
       steerDescription: "Inject a message into the active run",
