@@ -14,7 +14,6 @@ import type { GatewaySessionRow } from "../../api/types.ts";
 import { createChatAttachmentHandoff } from "../../app/chat-attachment-handoff.ts";
 import type { ApplicationContext } from "../../app/context.ts";
 import { createInitialUserMessageHandoff } from "../../app/initial-user-message-handoff.ts";
-import { TERMINAL_PANEL_TOGGLE_EVENT } from "../../components/panel-toggle-contract.ts";
 import { buildCatalogSessionKey, type CatalogSessionKey } from "../../lib/sessions/catalog-key.ts";
 import type { SessionCapability } from "../../lib/sessions/index.ts";
 import {
@@ -591,19 +590,24 @@ describe("chat pane keyboard shortcuts", () => {
     state.sidebarContent = canvasContent;
     state.sidebarLayout = openSlot({ columns: [] }, "detail");
 
-    expect(createSessionWorkspaceProps(state).collapsed).toBe(true);
+    const hasWorkspace = () =>
+      state.sidebarLayout.columns[0]?.panels.some((panel) => panel.slot === "workspace") === true;
+    expect(hasWorkspace()).toBe(false);
 
     const expandEvent = dispatchSidebarShortcut(pane);
 
     expect(expandEvent.defaultPrevented).toBe(true);
-    expect(createSessionWorkspaceProps(state).collapsed).toBe(false);
-    expect(state.sidebarLayout.columns[0]?.panels[0]?.slot).toBe("detail");
+    expect(hasWorkspace()).toBe(true);
+    expect(state.sidebarLayout.columns[0]?.panels.map((panel) => panel.slot)).toEqual([
+      "detail",
+      "workspace",
+    ]);
     expect(state.sidebarContent).toBe(canvasContent);
 
     const collapseEvent = dispatchSidebarShortcut(pane);
 
     expect(collapseEvent.defaultPrevented).toBe(true);
-    expect(createSessionWorkspaceProps(state).collapsed).toBe(true);
+    expect(hasWorkspace()).toBe(false);
     expect(state.sidebarLayout.columns[0]?.panels[0]?.slot).toBe("detail");
     expect(state.sidebarContent).toBe(canvasContent);
 
@@ -613,7 +617,31 @@ describe("chat pane keyboard shortcuts", () => {
     pane.active = false;
     const inactivePaneEvent = dispatchSidebarShortcut(pane);
     expect(inactivePaneEvent.defaultPrevented).toBe(false);
-    expect(createSessionWorkspaceProps(state).collapsed).toBe(true);
+    expect(hasWorkspace()).toBe(false);
+  });
+
+  it("toggles the terminal tab in the active pane", () => {
+    const { pane, state } = createTestChatPane({
+      client: {} as GatewayBrowserClient,
+      sessions: {} as SessionCapability,
+    });
+    pane.active = true;
+    state.terminalAvailable = true;
+    const press = () => {
+      const event = new KeyboardEvent("keydown", {
+        cancelable: true,
+        code: "Backquote",
+        ctrlKey: true,
+      });
+      pane.handleDocumentKeydown(event);
+      return event;
+    };
+
+    expect(press().defaultPrevented).toBe(true);
+    expect(state.sidebarLayout.columns[0]?.panels.map((panel) => panel.slot)).toEqual(["terminal"]);
+    expect(press().defaultPrevented).toBe(true);
+    expect(state.sidebarLayout.columns).toEqual([]);
+    expect(state.sidebarLayout.open).toBe(true);
   });
 });
 
@@ -698,49 +726,6 @@ describe("chat pane session creation lifecycle", () => {
 });
 
 describe("chat pane catalog session lifecycle", () => {
-  it("shows the eligible catalog terminal action and dispatches its typed reference", () => {
-    const client = { request: vi.fn() } as unknown as GatewayBrowserClient;
-    const { pane, state } = createTestChatPane({ client, sessions: {} as SessionCapability });
-    const key = {
-      catalogId: "codex",
-      hostId: "gateway:local",
-      threadId: "thread-101",
-    } satisfies CatalogSessionKey;
-    state.sessionKey = buildCatalogSessionKey(key);
-    state.terminalAvailable = true;
-    pane.catalogSession = {
-      threadId: key.threadId,
-      status: "idle",
-      archived: false,
-      canContinue: true,
-      canArchive: true,
-      canOpenTerminal: true,
-    };
-    const container = document.createElement("div");
-    render(
-      pane.renderPaneHeader(
-        createSessionWorkspaceProps(state),
-        createBackgroundTasksProps(state),
-        undefined,
-        true,
-        undefined,
-        false,
-      ),
-      container,
-    );
-    let detail: unknown;
-    const listener = (event: Event) => {
-      detail = (event as CustomEvent).detail;
-    };
-    window.addEventListener(TERMINAL_PANEL_TOGGLE_EVENT, listener);
-    try {
-      (container.querySelector('[aria-label="Open in terminal"]') as HTMLElement).click();
-    } finally {
-      window.removeEventListener(TERMINAL_PANEL_TOGGLE_EVENT, listener);
-    }
-    expect(detail).toEqual({ open: true, catalog: key });
-  });
-
   it("finds continuation metadata on a later catalog page", async () => {
     const key = {
       catalogId: "codex",

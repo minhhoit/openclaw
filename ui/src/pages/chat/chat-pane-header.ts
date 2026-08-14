@@ -6,10 +6,6 @@ import { isDesktopPanelAvailable } from "../../app/app-shell-chrome.ts";
 import { resolveControlUiAuthCandidates } from "../../app/control-ui-auth.ts";
 import { hasOperatorAdminAccess, hasOperatorWriteAccess } from "../../app/operator-access.ts";
 import { icons } from "../../components/icons.ts";
-import {
-  DESKTOP_PANEL_TOGGLE_EVENT,
-  type DesktopPanelToggleDetail,
-} from "../../components/panel-toggle-contract.ts";
 import { sessionMenuReasons } from "../../components/session-menu-access.ts";
 import { listSessionCreators } from "../../components/session-owner-chip.ts";
 import { isCloudWorkerPlacementState } from "../../components/session-row-badges.ts";
@@ -29,7 +25,6 @@ import { resolveChatPaneDesktopTarget, resolveChatPanePlacement } from "./chat-p
 import { ChatPaneSessionMenu } from "./chat-pane-session-menu.ts";
 import { readChatSessionActionAccess } from "./chat-session-action-access.ts";
 import { resolveChatAgentId } from "./chat-state-route.ts";
-import { renderBackgroundTasksToggle } from "./components/chat-background-tasks-render.ts";
 import type { BackgroundTasksProps } from "./components/chat-background-tasks.types.ts";
 import { isChatRunWorking } from "./components/chat-composer.ts";
 import "./components/chat-header-session-menu.ts";
@@ -44,14 +39,8 @@ import {
   resolveChatPaneParentSession,
   resolveChatPaneWorkspace,
 } from "./components/chat-pane-header.ts";
-import { renderSessionRailToggle } from "./components/chat-session-rail-toggle.ts";
 import { renderChatSessionSharing } from "./components/chat-session-sharing.ts";
-import {
-  renderSessionDiffToggle,
-  renderSessionWorkspaceToggle,
-  type SessionWorkspaceProps,
-} from "./components/chat-session-workspace.ts";
-import { renderChatTerminalButton } from "./components/chat-terminal-button.ts";
+import type { SessionWorkspaceProps } from "./components/chat-session-workspace.ts";
 import { renderContinueInTerminalDialog } from "./components/continue-in-terminal-dialog.ts";
 import type { SessionDiscussionPanelConfig } from "./components/session-discussion-panel.ts";
 import { hasAbortableSessionRun } from "./run-lifecycle.ts";
@@ -195,41 +184,28 @@ export abstract class ChatPaneHeader extends ChatPaneSessionMenu {
     const desktopEnvironmentId = resolveChatPaneDesktopTarget(row);
     const desktopPanelAvailable =
       desktopEnvironmentId !== null && isDesktopPanelAvailable(this.context.gateway.snapshot);
-    const openDesktopPanel = () => {
-      if (!desktopEnvironmentId) {
-        return;
-      }
-      window.dispatchEvent(
-        new CustomEvent<DesktopPanelToggleDetail>(DESKTOP_PANEL_TOGGLE_EVENT, {
-          detail: { open: true, environmentId: desktopEnvironmentId },
-        }),
-      );
-    };
-    const browserPanelAction = sessionWorkspace.onToggleBrowser
-      ? html`<openclaw-tooltip .content=${t("browser.toggle")}>
-          <button
-            class="btn btn--ghost btn--icon chat-icon-btn chat-browser-panel-toggle"
-            type="button"
-            aria-label=${t("browser.toggle")}
-            @click=${sessionWorkspace.onToggleBrowser}
-          >
-            ${icons.globe}
-          </button>
-        </openclaw-tooltip>`
-      : nothing;
-    const desktopPanelAction = desktopPanelAvailable
-      ? html`<openclaw-tooltip .content=${t("desktop.toggle")}>
-          <button
-            class="btn btn--ghost btn--icon chat-icon-btn chat-desktop-panel-toggle"
-            type="button"
-            aria-label=${t("desktop.toggle")}
-            @click=${openDesktopPanel}
-          >
-            ${icons.monitor}
-          </button>
-        </openclaw-tooltip>`
-      : nothing;
+    const openDesktopPanel = sessionWorkspace.onToggleDesktop ?? (() => undefined);
     const discussion = this.resolveSessionDiscussionAction();
+    const sidePanelOpen = this.state?.sidebarLayout.open === true;
+    const toggleSidePanel = () => {
+      const state = this.state;
+      if (state) {
+        this.setChatSidePanelOpen(!sidePanelOpen);
+      }
+    };
+    const sidePanelAction = html`<openclaw-tooltip
+      .content=${t(sidePanelOpen ? "chat.sidePanel.minimize" : "chat.sidePanel.label")}
+    >
+      <button
+        class="btn btn--ghost btn--icon chat-icon-btn chat-side-panel-toggle"
+        type="button"
+        aria-label=${t(sidePanelOpen ? "chat.sidePanel.minimize" : "chat.sidePanel.label")}
+        aria-expanded=${String(sidePanelOpen)}
+        @click=${toggleSidePanel}
+      >
+        ${sidePanelOpen ? icons.panelRightClose : icons.panelRightOpen}
+      </button>
+    </openclaw-tooltip>`;
     const sessionRailMode = this.selectedSessionRailMode(this.state?.sessionKey ?? "");
     const toggleSessionRail = () => this.requestSessionRail("toggle");
     const panelMenuActions: HeaderMenuQuickAction[] = [];
@@ -249,7 +225,7 @@ export abstract class ChatPaneHeader extends ChatPaneSessionMenu {
         onActivate: sessionWorkspace.onToggleBrowser,
       });
     }
-    if (desktopPanelAvailable) {
+    if (desktopPanelAvailable && sessionWorkspace.onToggleDesktop) {
       panelMenuActions.push({
         id: "desktop",
         label: t("desktop.toggle"),
@@ -364,19 +340,12 @@ export abstract class ChatPaneHeader extends ChatPaneSessionMenu {
       canReveal,
       copiedAction: this.headerCopiedAction,
       renameDisabledReason,
-      panelActions: html`${renderChatTerminalButton(
-        this.state,
-        this.catalogSession,
-        sessionWorkspace.onToggleTerminal,
-      )}${browserPanelAction}${desktopPanelAction}`,
-      discussionAction: this.renderSessionDiscussionAction(discussion),
-      diffAction: renderSessionDiffToggle(sessionWorkspace),
-      backgroundTasksAction: renderBackgroundTasksToggle(backgroundTasks),
-      sessionRailAction: renderSessionRailToggle({
-        mode: sessionRailMode,
-        onToggle: toggleSessionRail,
-      }),
-      workspaceAction: renderSessionWorkspaceToggle(sessionWorkspace),
+      panelActions: sidePanelAction,
+      discussionAction: nothing,
+      diffAction: nothing,
+      backgroundTasksAction: nothing,
+      sessionRailAction: nothing,
+      workspaceAction: nothing,
       presence:
         !catalog &&
         hasSessionPresenceViewers(
@@ -643,19 +612,16 @@ export abstract class ChatPaneHeader extends ChatPaneSessionMenu {
     if (!state) {
       return false;
     }
-    let opened = openSlot(state.sidebarLayout, "discussion", "right");
+    let opened = openSlot(state.sidebarLayout, "discussion");
     const discussionPanel = opened.columns
       .flatMap((column) => column.panels)
       .find((panel) => panel.slot === "discussion");
     if (discussionPanel) {
       opened = activatePanel(opened, discussionPanel.id);
     }
-    const newColumn = opened.columns.find(
-      (column) => !state.sidebarLayout.columns.some((current) => current.id === column.id),
-    );
     const fitted =
       this.paneWidth >= SIDEBAR_NARROW_BREAKPOINT_PX
-        ? (fitSidebarLayout(opened, this.paneWidth, newColumn?.id) ?? opened)
+        ? (fitSidebarLayout(opened, this.paneWidth) ?? opened)
         : opened;
     state.updateSidebarLayout(fitted);
     if (discussionPanel) {
