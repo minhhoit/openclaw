@@ -33,6 +33,8 @@ import {
   getActiveSlashMenuOptionId,
   getActiveSlashMenuOptionLabel,
   getSlashArgDraftChoices,
+  getSlashArgTextareaAria,
+  refuseEmptyRequiredSlashArg,
   isSlashMenuVisible,
   paneDomId,
   resetSlashMenuState,
@@ -308,6 +310,11 @@ export function renderChatComposer(props: ChatComposerProps) {
       target.value = hostDraft;
       adjustTextareaHeight(target);
     }
+    // The stage is a function of the draft, so a draft consumed by the send has
+    // to take its menu with it. Sending is the only draft mutation that does not
+    // raise an input event, and without this the listbox and the textarea's
+    // combobox wiring outlive the command they described.
+    updateSlashMenu(hostDraft, requestUpdate, props, { skipSlashIntent: true });
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
@@ -330,6 +337,19 @@ export function renderChatComposer(props: ChatComposerProps) {
       ) {
         return;
       }
+    }
+
+    // A required argument with no value must refuse Enter and say why. Without
+    // this the send path would dispatch the bare command and the refusal would
+    // be silent -- the exact dead-key bug this surface exists to prevent.
+    if (
+      props.connected &&
+      state.slashMenuOpen &&
+      event.key === "Enter" &&
+      refuseEmptyRequiredSlashArg(props, requestUpdate)
+    ) {
+      event.preventDefault();
+      return;
     }
 
     // The textarea drives every stage: the command text lives in the draft, so
@@ -677,6 +697,7 @@ export function renderChatComposer(props: ChatComposerProps) {
     ?.getSettings?.().facingMode;
   const mirrorCameraPreview = cameraFacingMode !== "environment";
   const slashMenuVisible = props.connected && canCompose && isSlashMenuVisible(state);
+  const slashArgAria = slashMenuVisible ? getSlashArgTextareaAria(state) : null;
   const skillMenuVisible = props.connected && canCompose && isSkillMenuVisible(state);
   if (!skillMenuVisible && state.skillMenuOpen && !state.skillCommandRefreshPending) {
     resetSkillMenuState(state);
@@ -719,6 +740,7 @@ export function renderChatComposer(props: ChatComposerProps) {
     runControlsProps,
     mirrorCameraPreview,
     slashMenuVisible,
+    slashArgAria,
     skillMenuVisible,
     activeSlashMenuOptionId,
     activeSlashMenuOptionLabel,
