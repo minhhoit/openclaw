@@ -91,7 +91,6 @@ class AppSidebar extends AppSidebarSessionNavigationElement implements SessionLi
   override readonly sidebarMenus = new SidebarMenusController(this);
   private readonly sidebarCustomizer = new SidebarCustomizerController(this);
 
-
   // Lazy: the controller pulls core token-suppression modules that must stay
   // out of the startup chunk (QA smoke startup-JS budget). It loads on the
   // first update with the preference enabled; earlier events are safely
@@ -605,10 +604,7 @@ class AppSidebar extends AppSidebarSessionNavigationElement implements SessionLi
                   @scroll=${(event: Event) =>
                     this.handleSidebarScroll(event.currentTarget as HTMLElement)}
                 >
-                  <nav
-                    class="sidebar-nav"
-                    @contextmenu=${this.sidebarMenus.openSidebarCustomizerFromContext}
-                  >
+                  <nav class="sidebar-nav">
                     <div
                       class="nav-section__items"
                       @dragover=${(event: DragEvent) =>
