@@ -1826,7 +1826,7 @@ body.update-dialog-open .sidebar-update-card__status {
   min-width: 0;
   flex: 1 1 auto;
   padding-block: 2px;
-  padding-inline-start: calc(var(--sidebar-text-start) - var(--sidebar-lead));
+  padding-inline-start: var(--sidebar-row-inset);
   border: none;
   background: transparent;
   color: inherit;
@@ -2146,7 +2146,7 @@ body.update-dialog-open .sidebar-update-card__status {
    step is the header's own lead slot, which is what puts the rows under the
    project name instead of under its mark. */
 .sidebar-session-catalog-project__sessions {
-  margin-left: var(--sidebar-lead);
+  margin-left: calc(var(--sidebar-row-inset) + var(--sidebar-lead) * 2 + 12px);
 }
 
 /* Project marks are product artwork, not sidebar glyphs, so they fill the lead
@@ -2230,7 +2230,7 @@ body.update-dialog-open .sidebar-update-card__status {
   gap: 0;
   width: 100%;
   min-height: 18px;
-  padding: 2px 12px 0 calc(var(--sidebar-text-start) - var(--sidebar-lead));
+  padding: 2px 12px 0 calc(var(--sidebar-row-inset) + var(--sidebar-lead));
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -2261,6 +2261,7 @@ body.update-dialog-open .sidebar-update-card__status {
   font-size: calc(12px * var(--control-ui-text-scale));
   font-weight: 650;
   letter-spacing: 0.03em;
+  margin-left: 6px;
 }
 
 .sidebar-session-pagination {
