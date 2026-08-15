@@ -313,7 +313,9 @@ function renderCatalogHostGroup(
             aria-label=${errorHelp ? `${host.label}: ${errorHelp}` : host.label}
             title=${errorHelp ?? host.label}
           >
-            <span class="sidebar-session-catalog-host__label">${host.label}</span>
+            <span class="sidebar-session-catalog-host__label" ${ref(createOverflowFadeRef())}
+              >${host.label}</span
+            >
             ${host.error
               ? html`<span
                   class="sidebar-session-group-status sidebar-session-group-status--error"
