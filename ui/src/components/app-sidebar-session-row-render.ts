@@ -187,6 +187,7 @@ export function renderRecentSession(params: {
     session,
     hasDisplay: display !== undefined,
     displaySubtitle: display?.subtitle,
+    displayWork: display?.work,
     sidebarLiveActivity: host.sidebarLiveActivity,
     narrationLine: host.sidebarNarrationLines.get(session.key),
     observerDigest: host.sidebarObserverDigests.get(session.key) ?? null,
