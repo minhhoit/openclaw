@@ -44,7 +44,7 @@ import {
   renderSessionInformationCard,
   SESSION_CARD_COLD_DELAY_MS,
 } from "./session-row-hover-card.ts";
-import { renderSessionRowCreator, renderSessionRowOrigin } from "./session-row-origin.ts";
+import { renderSessionRowCreator, renderSessionRowMarkers } from "./session-row-origin.ts";
 import {
   renderSidebarSessionSubtitle,
   resolveSidebarSessionSubtitle,
@@ -218,11 +218,9 @@ export function renderRecentSession(params: {
   const meta = display?.meta ?? formatSidebarTimestamp(session.updatedAt);
   const rowMeta = session.pinned ? "" : meta;
   const stateId = primaryState.kind === "none" ? undefined : sidebarSessionStateId(session.key);
-  const origin = session.isChild
+  const titleMarkers = session.isChild
     ? nothing
-    : renderSessionRowOrigin({
-        actor: undefined,
-        attribution: ownerAttribution,
+    : renderSessionRowMarkers({
         draft: session.visibility === "draft",
         incognito: session.incognito === true,
       });
@@ -422,7 +420,7 @@ export function renderRecentSession(params: {
           ${creator}
           <span class="sidebar-recent-session__text">
             <span class="sidebar-recent-session__title">
-              ${origin}
+              ${titleMarkers}
               ${session.pinned
                 ? html`<span class="sidebar-recent-session__name hover-marquee"
                     >${nameContent}</span

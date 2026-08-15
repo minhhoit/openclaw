@@ -3,25 +3,19 @@ import { t } from "../i18n/index.ts";
 import { icons } from "./icons.ts";
 import { renderSessionOwnerChip, type SessionCreatedActor } from "./session-owner-chip.ts";
 
-/**
- * Where a session came from, rendered as ordinary content ahead of the title.
- * Absent origin renders nothing at all, so a row with no creator and no
- * privacy qualifier starts its title on the same axis as its section label.
- */
-export function renderSessionRowOrigin(params: {
-  actor: SessionCreatedActor | null | undefined;
-  attribution: "created" | "archived";
+/** Privacy and draft state stay attached to the title they qualify; creator
+ *  identity has its own optional column outside this inline group. */
+export function renderSessionRowMarkers(params: {
   draft: boolean;
   incognito: boolean;
 }): TemplateResult | typeof nothing {
-  const actor = params.actor?.id?.trim() ? params.actor : undefined;
-  if (!actor && !params.draft && !params.incognito) {
+  if (!params.draft && !params.incognito) {
     return nothing;
   }
-  return html`<span class="session-row-origin">
+  return html`<span class="session-row-markers">
     ${params.incognito
       ? html`<span
-          class="session-row-origin__qualifier"
+          class="session-row-marker session-row-marker--incognito"
           role="img"
           aria-label=${t("sessionsView.incognito")}
           title=${t("sessionsView.incognito")}
@@ -29,7 +23,9 @@ export function renderSessionRowOrigin(params: {
         >`
       : nothing}
     ${params.draft
-      ? html`<span class="session-row-origin__draft">${t("chat.sessionSharing.draft")}</span>`
+      ? html`<span class="session-row-marker session-row-marker--draft"
+          >${t("chat.sessionSharing.draft")}</span
+        >`
       : nothing}
   </span>`;
 }
