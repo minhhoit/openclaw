@@ -2407,6 +2407,17 @@ body.update-dialog-open .sidebar-update-card__status {
   margin-left: 8px;
 }
 
+/* Creator artwork owns a column only when the row has a creator. It starts at
+   the row inset and follows the title line instead of centering across a second
+   subtitle line; rows without a creator keep their title flush. */
+.sidebar-recent-session__link > .sidebar-session-creator {
+  display: inline-flex;
+  width: 20px;
+  flex: 0 0 20px;
+  align-self: flex-start;
+  margin: 0 8px 0 0;
+}
+
 .sidebar-child-session-toggle {
   display: inline-flex;
   align-items: center;

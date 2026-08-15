@@ -19,7 +19,6 @@ export function renderSessionRowOrigin(params: {
     return nothing;
   }
   return html`<span class="session-row-origin">
-    ${actor ? renderSessionOwnerChip(actor, "row", params.attribution) : nothing}
     ${params.incognito
       ? html`<span
           class="session-row-origin__qualifier"
@@ -33,4 +32,17 @@ export function renderSessionRowOrigin(params: {
       ? html`<span class="session-row-origin__draft">${t("chat.sessionSharing.draft")}</span>`
       : nothing}
   </span>`;
+}
+
+export function renderSessionRowCreator(params: {
+  actor: SessionCreatedActor | null | undefined;
+  attribution: "created" | "archived";
+  viewingNow: boolean;
+}): TemplateResult | typeof nothing {
+  const actor = params.actor?.id?.trim() ? params.actor : undefined;
+  return actor
+    ? html`<span class="sidebar-session-creator"
+        >${renderSessionOwnerChip(actor, "row", params.attribution, params.viewingNow)}</span
+      >`
+    : nothing;
 }

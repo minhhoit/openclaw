@@ -44,13 +44,13 @@ import {
   renderSessionInformationCard,
   SESSION_CARD_COLD_DELAY_MS,
 } from "./session-row-hover-card.ts";
-import { renderSessionRowOrigin } from "./session-row-origin.ts";
+import { renderSessionRowCreator, renderSessionRowOrigin } from "./session-row-origin.ts";
 import {
   renderSidebarSessionSubtitle,
   resolveSidebarSessionSubtitle,
 } from "./session-row-subtitle.ts";
 import type { SidebarMenusController } from "./sidebar-menus-controller.ts";
-import { sessionPresenceViewers } from "./viewer-facepile.ts";
+import { isSessionPresenceIdentityWatching } from "./viewer-facepile.ts";
 
 const SIDEBAR_VISIBLE_CHILD_SESSION_LIMIT = 4;
 
@@ -205,6 +205,13 @@ export function renderRecentSession(params: {
       ? session.archivedBy
       : session.createdActor
     : undefined;
+  const ownerViewing = isSessionPresenceIdentityWatching(
+    host.sessionData.presencePayload,
+    host.sessionDataContext?.gateway.snapshot.selfUser?.id,
+    host.sessionData.presenceInstanceId,
+    session.key,
+    ownerActor?.id,
+  );
   const primaryState = resolveSessionPrimaryState(session);
   const running = primaryState.kind === "running";
   const stateDescription = describeSessionPrimaryState(primaryState);
@@ -214,10 +221,17 @@ export function renderRecentSession(params: {
   const origin = session.isChild
     ? nothing
     : renderSessionRowOrigin({
-        actor: ownerActor,
+        actor: undefined,
         attribution: ownerAttribution,
         draft: session.visibility === "draft",
         incognito: session.incognito === true,
+      });
+  const creator = session.isChild
+    ? nothing
+    : renderSessionRowCreator({
+        actor: ownerActor,
+        attribution: ownerAttribution,
+        viewingNow: ownerViewing,
       });
   const openMenuFromEvent = session.isChild
     ? undefined
@@ -279,14 +293,6 @@ export function renderRecentSession(params: {
         >${icons.layoutDashboard}</span
       >`
     : nothing;
-  const viewerFacepile = html`<openclaw-viewer-facepile
-    .presencePayload=${host.sessionData.presencePayload}
-    .selfUserId=${host.sessionDataContext?.gateway.snapshot.selfUser?.id}
-    .selfInstanceId=${host.sessionData.presenceInstanceId}
-    .sessionKey=${session.key}
-    .maxVisible=${session.pinned ? 3 : 2}
-    variant="session"
-  ></openclaw-viewer-facepile>`;
   const rowBadges = renderSessionRowBadges({
     ...session,
     // An active row shows the composer itself, so its own draft is not news.
@@ -299,17 +305,9 @@ export function renderRecentSession(params: {
       session.attention.kind !== "approval" &&
       sessionHasPendingApproval(host.sessionData.approvalBadgeSnapshot(), session.key),
   });
-  const hasViewers =
-    sessionPresenceViewers(
-      host.sessionData.presencePayload,
-      host.sessionDataContext?.gateway.snapshot.selfUser?.id,
-      host.sessionData.presenceInstanceId,
-      session.key,
-    ).length > 0;
   const hasRestSummary =
     primaryState.kind !== "none" ||
     sessionHasBoard(session.key) ||
-    hasViewers ||
     pullRequestState !== "none" ||
     rowBadges !== nothing;
   const endcap = renderSessionRowEndcap({
@@ -317,9 +315,7 @@ export function renderRecentSession(params: {
     stateId,
     metadata: session.pinned
       ? renderSessionWorktreePullRequest(pullRequestState)
-      : html`${boardIndicator}${viewerFacepile}${rowBadges}${renderSessionWorktreePullRequest(
-          pullRequestState,
-        )}`,
+      : html`${boardIndicator}${rowBadges}${renderSessionWorktreePullRequest(pullRequestState)}`,
     legacy: session.pinned || session.isChild,
     actionOnly: !hasRestSummary,
     actions: session.isChild
@@ -423,6 +419,7 @@ export function renderRecentSession(params: {
           ${params.lead
             ? html`<span class="nav-item__icon" aria-hidden="true">${params.lead}</span>`
             : nothing}
+          ${creator}
           <span class="sidebar-recent-session__text">
             <span class="sidebar-recent-session__title">
               ${origin}
@@ -440,7 +437,7 @@ export function renderRecentSession(params: {
               ? nothing
               : renderSidebarSessionSubtitle(subtitleValue, params.project)}
           </span>
-          ${session.pinned ? html`${boardIndicator}${viewerFacepile}${rowBadges}` : nothing}
+          ${session.pinned ? html`${boardIndicator}${rowBadges}` : nothing}
         </a>
         ${session.childSessionKeys.length > 0
           ? html`<button

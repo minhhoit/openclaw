@@ -43,7 +43,9 @@ import {
   renderCatalogSessionInformationCard,
   SESSION_CARD_COLD_DELAY_MS,
 } from "./session-row-hover-card.ts";
+import { renderSessionRowCreator } from "./session-row-origin.ts";
 import { renderSidebarSessionWorkContext } from "./session-row-subtitle.ts";
+import { isSessionPresenceIdentityWatching } from "./viewer-facepile.ts";
 import { renderWorkspaceIcon, type WorkspaceIconSource } from "./workspace-icon.ts";
 
 type SessionCatalogGroupsParams = {
@@ -59,6 +61,10 @@ type SessionCatalogGroupsParams = {
   liveRows: readonly GatewaySessionRow[];
   workspaceIconSourceForSession: (sessionKey: string) => WorkspaceIconSource | null;
   creatorId?: string | null;
+  sessionOwnershipVisible: boolean;
+  presencePayload?: unknown;
+  selfUserId?: string;
+  selfInstanceId?: string;
   renderLiveRow: (row: GatewaySessionRow, display: CatalogBackingSessionDisplay) => unknown;
   onToggleSection: (sectionId: string) => void;
   draggingSectionId: string | null;
@@ -447,6 +453,17 @@ function renderCatalogSessionRow(
     pullRequest: session.pullRequest,
     maxVisible: 2,
   });
+  const creator = renderSessionRowCreator({
+    actor: params.sessionOwnershipVisible ? session.createdActor : undefined,
+    attribution: "created",
+    viewingNow: isSessionPresenceIdentityWatching(
+      params.presencePayload,
+      params.selfUserId,
+      params.selfInstanceId,
+      key,
+      session.createdActor?.id,
+    ),
+  });
   const openTerminal = () => params.onOpenTerminal(catalogKey);
   const openMenu = (x: number, y: number, trigger?: HTMLElement) =>
     params.onOpenMenu(
@@ -506,6 +523,7 @@ function renderCatalogSessionRow(
             }
           }}
         >
+          ${creator}
           <span class="sidebar-recent-session__text">
             <span class="sidebar-recent-session__title">
               <span

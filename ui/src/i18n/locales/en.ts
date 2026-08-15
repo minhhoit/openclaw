@@ -840,6 +840,7 @@ export const en: TranslationMap = {
     limit: "Limit",
     createdBy: "Created by {name}",
     archivedBy: "Archived by {name}",
+    viewingNow: "viewing now",
     createdByLabel: "Created by",
     archivedByLabel: "Archived by",
     projectLabel: "Project",

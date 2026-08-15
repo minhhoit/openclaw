@@ -31,12 +31,20 @@ openclaw-session-owner-chip {
   color: white;
   font-weight: 700;
   line-height: 1;
+  transition:
+    filter var(--duration-fast) ease,
+    opacity var(--duration-fast) ease;
+}
+
+.session-owner-chip--away {
+  filter: grayscale(0.8);
+  opacity: 0.45;
 }
 
 .session-owner-chip--row {
-  width: 16px;
-  height: 16px;
-  font-size: 8px;
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
 }
 
 /* Header identity is one scale: the creator matches the 18px viewer avatars it
