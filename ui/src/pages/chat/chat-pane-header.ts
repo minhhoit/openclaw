@@ -25,6 +25,7 @@ import { resolveChatPaneDesktopTarget, resolveChatPanePlacement } from "./chat-p
 import { ChatPaneSessionMenu } from "./chat-pane-session-menu.ts";
 import { readChatSessionActionAccess } from "./chat-session-action-access.ts";
 import { resolveChatAgentId } from "./chat-state-route.ts";
+import { renderBackgroundTasksToggle } from "./components/chat-background-tasks-render.ts";
 import type { BackgroundTasksProps } from "./components/chat-background-tasks.types.ts";
 import { isChatRunWorking } from "./components/chat-composer.ts";
 import "./components/chat-header-session-menu.ts";
@@ -206,6 +207,19 @@ export abstract class ChatPaneHeader extends ChatPaneSessionMenu {
         ${sidePanelOpen ? icons.panelRightClose : icons.panelRightOpen}
       </button>
     </openclaw-tooltip>`;
+    const browserPanelAction = sessionWorkspace.onToggleBrowser
+      ? html`<openclaw-tooltip .content=${t("browser.toggle")}>
+          <button
+            class="btn btn--ghost btn--icon chat-icon-btn chat-browser-panel-toggle"
+            type="button"
+            aria-label=${t("browser.toggle")}
+            @click=${sessionWorkspace.onToggleBrowser}
+          >
+            ${icons.globe}
+          </button>
+        </openclaw-tooltip>`
+      : nothing;
+    const backgroundTasksAction = catalog ? nothing : renderBackgroundTasksToggle(backgroundTasks);
     const sessionRailMode = this.selectedSessionRailMode(this.state?.sessionKey ?? "");
     const toggleSessionRail = () => this.requestSessionRail("toggle");
     const panelMenuActions: HeaderMenuQuickAction[] = [];
@@ -340,7 +354,7 @@ export abstract class ChatPaneHeader extends ChatPaneSessionMenu {
       canReveal,
       copiedAction: this.headerCopiedAction,
       renameDisabledReason,
-      panelActions: sidePanelAction,
+      panelActions: html`${browserPanelAction}${backgroundTasksAction}${sidePanelAction}`,
       discussionAction: nothing,
       diffAction: nothing,
       backgroundTasksAction: nothing,
