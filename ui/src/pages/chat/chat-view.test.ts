@@ -3605,12 +3605,13 @@ describe("chat slash menu accessibility", () => {
   ) {
     replaceSlashCommands([
       ...buildFallbackSlashCommands(),
-      ...skills.map(({ key, name = key, description }) => ({
-        ...makeSlashCommand(name, { description }),
-        key,
-        source: "skill" as const,
-        skillModelVisible: true,
-      })),
+      ...skills.map(({ key, name = key, description }) =>
+        Object.assign(makeSlashCommand(name, { description }), {
+          key,
+          source: "skill" as const,
+          skillModelVisible: true,
+        }),
+      ),
     ]);
   }
 
