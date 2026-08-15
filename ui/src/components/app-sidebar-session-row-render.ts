@@ -438,8 +438,6 @@ export function renderRecentSession(params: {
         : renderSessionInformationCard({
             session,
             title: label,
-            owner: ownerActor,
-            attribution: ownerAttribution,
             presencePayload: host.sessionData.presencePayload,
             selfUserId: host.sessionDataContext?.gateway.snapshot.selfUser?.id,
             selfInstanceId: host.sessionData.presenceInstanceId,
