@@ -5,7 +5,8 @@ import { GATEWAY_CLIENT_IDS } from "../../packages/gateway-protocol/src/client-i
 import type { WorkerAdmissionHandshake } from "../../packages/gateway-protocol/src/schema/worker-admission.js";
 import {
   isPrivateNodeInvokeCommand,
-  NODE_WORKER_SUPERVISOR_COMMANDS,
+  NODE_WORKER_PRIVATE_COMMANDS,
+  NODE_WORKER_SUPERVISOR_LAUNCH_COMMAND,
 } from "../infra/node-commands.js";
 import {
   NODE_WORKER_SUPERVISOR_PROTOCOL_FEATURE,
@@ -61,7 +62,7 @@ type NodeInvokeParams = {
   isDispatchAuthorized?: () => boolean;
 };
 
-type NodeWorkerSupervisorCommand = (typeof NODE_WORKER_SUPERVISOR_COMMANDS)[number];
+type NodeWorkerPrivateCommand = (typeof NODE_WORKER_PRIVATE_COMMANDS)[number];
 
 export type NodeWorkerSupervisorNodeProof = {
   nodeId: string;
@@ -71,6 +72,9 @@ export type NodeWorkerSupervisorNodeProof = {
   clientId: typeof GATEWAY_CLIENT_IDS.NODE_HOST;
   clientMode: "node";
   protocolFeature: typeof NODE_WORKER_SUPERVISOR_PROTOCOL_FEATURE;
+  /** Immutable build ceiling from the authenticated connection handshake. */
+  workerBuild?: WorkerAdmissionHandshake;
+  /** Transient new-launch eligibility; omitted while the node is at capacity. */
   workerRuns?: WorkerAdmissionHandshake;
   commands: readonly string[];
 };
@@ -79,7 +83,7 @@ export type NodeWorkerSupervisorTransport = {
   listCurrentNodes(): Promise<readonly NodeWorkerSupervisorNodeProof[]>;
   invoke(params: {
     node: NodeWorkerSupervisorNodeProof;
-    command: NodeWorkerSupervisorCommand;
+    command: NodeWorkerPrivateCommand;
     params?: unknown;
     timeoutMs?: number;
     signal?: AbortSignal;
@@ -91,7 +95,7 @@ export type NodeWorkerSupervisorTransport = {
 
 type NodeRunnerInventoryRecord = Omit<
   NodeWorkerSupervisorNodeProof,
-  "commands" | "pairingGeneration" | "workerRuns"
+  "commands" | "pairingGeneration" | "workerBuild" | "workerRuns"
 > & {
   protocolFeatures: readonly string[];
   workerRuns?: WorkerAdmissionHandshake;
@@ -225,6 +229,7 @@ function resolveWorkerSupervisorProof(
     clientId: GATEWAY_CLIENT_IDS.NODE_HOST,
     clientMode: "node",
     protocolFeature: NODE_WORKER_SUPERVISOR_PROTOCOL_FEATURE,
+    ...(node.workerRuns ? { workerBuild: structuredClone(node.workerRuns) } : {}),
     ...(declaration.workerRuns ? { workerRuns: structuredClone(declaration.workerRuns) } : {}),
     commands: [...node.commands],
   };
@@ -233,6 +238,7 @@ function resolveWorkerSupervisorProof(
 function isWorkerSupervisorProofCurrent(
   state: NodeRegistryPrivateState,
   proof: NodeWorkerSupervisorNodeProof,
+  requireLaunchEligibility: boolean,
 ): boolean {
   const node = state.context.getNode(proof.nodeId);
   if (!node || node.client.invalidated === true || node.connId !== proof.connId) {
@@ -245,7 +251,8 @@ function isWorkerSupervisorProofCurrent(
     current.clientId === proof.clientId &&
     current.clientMode === proof.clientMode &&
     current.protocolFeature === proof.protocolFeature &&
-    sameOptionalWorkerBuild(current.workerRuns, proof.workerRuns)
+    sameOptionalWorkerBuild(current.workerBuild, proof.workerBuild) &&
+    (!requireLaunchEligibility || sameOptionalWorkerBuild(current.workerRuns, proof.workerRuns))
   );
 }
 
@@ -481,14 +488,19 @@ export function registerNodeRegistryPrivateRuntime(
       });
     },
     invoke: async (params) => {
-      if (!NODE_WORKER_SUPERVISOR_COMMANDS.includes(params.command)) {
+      if (!NODE_WORKER_PRIVATE_COMMANDS.includes(params.command)) {
         return {
           ok: false,
           error: { code: "INVALID_REQUEST", message: "private node command is not allowed" },
         };
       }
       const isProofCurrent = () =>
-        params.isDispatchAuthorized() && isWorkerSupervisorProofCurrent(state, params.node);
+        params.isDispatchAuthorized() &&
+        isWorkerSupervisorProofCurrent(
+          state,
+          params.node,
+          params.command === NODE_WORKER_SUPERVISOR_LAUNCH_COMMAND,
+        );
       if (!isProofCurrent()) {
         return {
           ok: false,
