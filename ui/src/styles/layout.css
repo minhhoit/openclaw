@@ -2373,7 +2373,7 @@ body.update-dialog-open .sidebar-update-card__status {
   min-width: 0;
   min-height: 30px;
   padding-block: 3px;
-  padding-inline: var(--sidebar-text-start) 4px;
+  padding-inline: var(--sidebar-row-inset) 4px;
   color: inherit;
   cursor: var(--cursor-action);
   text-decoration: none;
@@ -2381,11 +2381,6 @@ body.update-dialog-open .sidebar-update-card__status {
 
 .sidebar-recent-session__link > :not(.sidebar-recent-session__text) {
   margin-left: 8px;
-}
-
-.sidebar-recent-session__link > .sidebar-session-indicator {
-  position: absolute;
-  inset-inline-start: var(--sidebar-row-inset);
 }
 
 .sidebar-child-session-toggle {
@@ -3279,7 +3274,7 @@ wa-dropdown-item.session-menu__item::part(submenu-icon) {
   gap: 0;
   min-height: 30px;
   padding-block: 3px;
-  padding-inline: var(--sidebar-text-start) 4px;
+  padding-inline: var(--sidebar-row-inset) 4px;
 }
 
 .sidebar-zone-entry .sidebar-recent-session__name {
