@@ -258,10 +258,10 @@ describe("AppSidebar session indicators", () => {
     expect(forked?.querySelector("a")?.getAttribute("aria-describedby") ?? "").not.toContain(
       "sidebar-session-state-",
     );
-    expect(unread?.querySelector("a")?.getAttribute("title")).toContain("Unread");
-    expect(runningUnread?.querySelector("a")?.getAttribute("title")).toContain("Active run");
+    expect(unread?.querySelector("a")?.getAttribute("aria-label")).toContain("Unread");
+    expect(runningUnread?.querySelector("a")?.getAttribute("aria-label")).toContain("Active run");
     // A live run supersedes unread, in the title as well as in the endcap.
-    expect(runningUnread?.querySelector("a")?.getAttribute("title")).not.toContain("Unread");
+    expect(runningUnread?.querySelector("a")?.getAttribute("aria-label")).not.toContain("Unread");
     expect(runningUnread?.querySelector(".session-row-state")?.getAttribute("aria-label")).toBe(
       "Active run",
     );
@@ -270,7 +270,7 @@ describe("AppSidebar session indicators", () => {
       const row = sidebar.querySelector(`[data-session-key="${key}"]`);
       expectNoLead(row);
       expect(row?.querySelector(".session-row-aside [data-session-pr-state]")).not.toBeNull();
-      expect(row?.querySelector("a")?.getAttribute("title")).toContain(
+      expect(row?.querySelector("a")?.getAttribute("aria-label")).toContain(
         key === keys.openPullRequest ? "Open PR" : "Merged",
       );
       expect(row?.querySelector("[data-session-pr-state]")?.hasAttribute("title")).toBe(false);

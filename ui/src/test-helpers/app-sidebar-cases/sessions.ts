@@ -365,7 +365,7 @@ describe("AppSidebar session accessibility", () => {
       false,
     );
     expect(row?.hasAttribute("aria-label")).toBe(false);
-    expect(link?.hasAttribute("aria-label")).toBe(false);
+    expect(link?.getAttribute("aria-label")).toBe("Quarterly launch plan · now");
     expect(link?.getAttribute("aria-current")).toBe("page");
     expect(link?.querySelector(".sidebar-session-indicator")).toBeNull();
     expect(link?.querySelector(".sidebar-recent-session__text")).not.toBeNull();
@@ -374,7 +374,7 @@ describe("AppSidebar session accessibility", () => {
     expect(link?.querySelector(".sidebar-recent-session__name")?.textContent).toBe(
       "Quarterly launch plan",
     );
-    expect(link?.getAttribute("title")).toBe("Quarterly launch plan · now");
+    expect(link?.hasAttribute("title")).toBe(false);
     expect(link?.getAttribute("aria-describedby") ?? "").not.toContain("sidebar-session-state-");
     expect(row?.querySelector(".session-row-trail")).toBeNull();
   });

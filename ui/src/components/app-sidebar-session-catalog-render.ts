@@ -466,7 +466,7 @@ function renderCatalogSessionRow(
         <a
           href=${href}
           class="sidebar-recent-session__link"
-          title=${[`${label} · ${host.label}`, stateDescription].filter(Boolean).join(" · ")}
+          aria-label=${[`${label} · ${host.label}`, stateDescription].filter(Boolean).join(" · ")}
           aria-current=${active ? "page" : nothing}
           aria-describedby=${stateId ?? nothing}
           @click=${(event: MouseEvent) => {
