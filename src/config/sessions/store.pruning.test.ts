@@ -53,7 +53,10 @@ function isGatewayModelRunSessionKey(sessionKey: string): boolean {
 }
 
 function isProtectedSessionMaintenanceEntry(key: string, entry: SessionEntry | undefined): boolean {
-  return shouldPreserveMaintenanceEntry({ key, entry });
+  return shouldPreserveMaintenanceEntry({
+    key,
+    entry: entry ? { ...entry, updatedAt: Date.now() - 4 * DAY_MS } : undefined,
+  });
 }
 
 function resolveSessionEntryMaintenanceHighWater(maxEntries: number): number {
@@ -384,8 +387,8 @@ describe("applyFileBackedSessionStoreMaintenance", () => {
       ["archived-1", { ...makeEntry(now - 5), archivedAt: now }],
       ["archived-2", { ...makeEntry(now - 4), archivedAt: now }],
       ["archived-3", { ...makeEntry(now - 3), archivedAt: now }],
-      ["dashboard-1", makeEntry(now - 2)],
-      ["dashboard-2", makeEntry(now - 1)],
+      ["dashboard-1", makeEntry(now - 5 * DAY_MS)],
+      ["dashboard-2", makeEntry(now - 4 * DAY_MS)],
     ]);
     let capped: number | undefined;
 
@@ -453,8 +456,8 @@ describe("applyFileBackedSessionStoreMaintenance", () => {
         key,
         { sessionId, updatedAt: now - preserved.length - 1 + index },
       ]),
-      ["removable-old", { sessionId: "removable-old-session", updatedAt: now - 2 }],
-      ["removable-recent", { sessionId: "removable-recent-session", updatedAt: now - 1 }],
+      ["removable-old", { sessionId: "removable-old-session", updatedAt: now - 5 * DAY_MS }],
+      ["removable-recent", { sessionId: "removable-recent-session", updatedAt: now - 4 * DAY_MS }],
     ]);
     const admission = await beginSessionWorkAdmission({
       scope: storePath,
@@ -660,11 +663,11 @@ describe("capEntryCount", () => {
   it("over limit: keeps N most recent by updatedAt, deletes rest", () => {
     const now = Date.now();
     const store = makeStore([
-      ["oldest", makeEntry(now - 4 * DAY_MS)],
-      ["old", makeEntry(now - 3 * DAY_MS)],
-      ["mid", makeEntry(now - 2 * DAY_MS)],
-      ["recent", makeEntry(now - DAY_MS)],
-      ["newest", makeEntry(now)],
+      ["oldest", makeEntry(now - 8 * DAY_MS)],
+      ["old", makeEntry(now - 7 * DAY_MS)],
+      ["mid", makeEntry(now - 6 * DAY_MS)],
+      ["recent", makeEntry(now - 5 * DAY_MS)],
+      ["newest", makeEntry(now - 4 * DAY_MS)],
     ]);
 
     const evicted = capEntryCount(store, 3);
@@ -682,11 +685,11 @@ describe("capEntryCount", () => {
     const now = Date.now();
     const threadKey = "agent:main:discord:channel:123456:thread:987654";
     const store = makeStore([
-      [threadKey, makeEntry(now - 5 * DAY_MS)],
-      ["oldest", makeEntry(now - 4 * DAY_MS)],
-      ["old", makeEntry(now - 3 * DAY_MS)],
-      ["recent", makeEntry(now - DAY_MS)],
-      ["newest", makeEntry(now)],
+      [threadKey, makeEntry(now - 9 * DAY_MS)],
+      ["oldest", makeEntry(now - 8 * DAY_MS)],
+      ["old", makeEntry(now - 7 * DAY_MS)],
+      ["recent", makeEntry(now - 5 * DAY_MS)],
+      ["newest", makeEntry(now - 4 * DAY_MS)],
     ]);
 
     const evicted = capEntryCount(store, 3);
@@ -725,8 +728,8 @@ describe("capEntryCount", () => {
     const lockedKey = "agent:main:harness-owned:locked";
     const store = makeStore([
       [lockedKey, { ...makeEntry(now - 10 * DAY_MS), modelSelectionLocked: true }],
-      ["recent", makeEntry(now)],
-      ["old", makeEntry(now - DAY_MS)],
+      ["recent", makeEntry(now - 4 * DAY_MS)],
+      ["old", makeEntry(now - 5 * DAY_MS)],
     ]);
 
     const evicted = capEntryCount(store, 2);
@@ -741,8 +744,8 @@ describe("capEntryCount", () => {
     const now = Date.now();
     const store = makeStore([
       ["archived", { ...makeEntry(now - 10 * DAY_MS), archivedAt: now - 5 * DAY_MS }],
-      ["recent", makeEntry(now)],
-      ["old", makeEntry(now - DAY_MS)],
+      ["recent", makeEntry(now - 4 * DAY_MS)],
+      ["old", makeEntry(now - 5 * DAY_MS)],
     ]);
 
     expect(capEntryCount(store, 2)).toBe(1);
@@ -756,9 +759,9 @@ describe("capEntryCount", () => {
     const childKey = "agent:main:subagent:child";
     const store = makeStore([
       [childKey, { ...makeEntry(now - 10 * DAY_MS), spawnedBy: "agent:main:slack:direct:U1" }],
-      ["recent-1", makeEntry(now)],
-      ["recent-2", makeEntry(now - 1)],
-      ["old", makeEntry(now - 2)],
+      ["recent-1", makeEntry(now - 4 * DAY_MS)],
+      ["recent-2", makeEntry(now - 5 * DAY_MS)],
+      ["old", makeEntry(now - 6 * DAY_MS)],
     ]);
     const unregister = registerSessionMaintenancePreserveKeysProvider(() => [childKey]);
 
@@ -783,8 +786,8 @@ describe("capEntryCount", () => {
     const childKey = "agent:main:subagent:child";
     const store = makeStore([
       [childKey, { ...makeEntry(now - 10 * DAY_MS), spawnedBy: "agent:main:slack:direct:U1" }],
-      ["recent-1", makeEntry(now)],
-      ["old", makeEntry(now - 1)],
+      ["recent-1", makeEntry(now - 4 * DAY_MS)],
+      ["old", makeEntry(now - 5 * DAY_MS)],
     ]);
     // Provider returns the key in mixed case + with surrounding whitespace;
     // normalization must match the lowercased store key during maintenance.
@@ -1067,16 +1070,16 @@ describe("getActiveSessionMaintenanceWarning", () => {
   it("warns when the active session is outside the retained recent entries", () => {
     const now = Date.now();
     const store = makeStore([
-      ["newest", makeEntry(now)],
-      ["recent", makeEntry(now - 1)],
-      ["active", makeEntry(now - 2)],
-      ["old", makeEntry(now - 3)],
+      ["newest", makeEntry(now - 4 * DAY_MS)],
+      ["recent", makeEntry(now - 4 * DAY_MS - 1)],
+      ["active", makeEntry(now - 4 * DAY_MS - 2)],
+      ["old", makeEntry(now - 4 * DAY_MS - 3)],
     ]);
 
     const warning = getActiveSessionMaintenanceWarning({
       store,
       activeSessionKey: "active",
-      pruneAfterMs: DAY_MS,
+      pruneAfterMs: 30 * DAY_MS,
       maxEntries: 2,
       nowMs: now,
     });
@@ -1088,15 +1091,15 @@ describe("getActiveSessionMaintenanceWarning", () => {
   it("preserves insertion order tie behavior from stable sorting", () => {
     const now = Date.now();
     const store = makeStore([
-      ["same-before", makeEntry(now)],
-      ["active", makeEntry(now)],
-      ["same-after", makeEntry(now)],
+      ["same-before", makeEntry(now - 4 * DAY_MS)],
+      ["active", makeEntry(now - 4 * DAY_MS)],
+      ["same-after", makeEntry(now - 4 * DAY_MS)],
     ]);
 
     const warning = getActiveSessionMaintenanceWarning({
       store,
       activeSessionKey: "active",
-      pruneAfterMs: DAY_MS,
+      pruneAfterMs: 30 * DAY_MS,
       maxEntries: 1,
       nowMs: now,
     });

@@ -192,6 +192,7 @@ async function applySqliteSessionEntryReplacementProjection<T, TReplacement>(
           applySessionEntryMaintenance(transactionDb, {
             activeSessionKey: params.activeSessionKey ?? "",
             archiveDirectory: resolveSqliteTranscriptArchiveDirectory(resolved),
+            env: resolved.env,
             skipMaintenance: params.skipMaintenance ?? true,
             storePath: params.storePath,
           }),

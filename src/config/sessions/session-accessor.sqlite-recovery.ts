@@ -215,6 +215,7 @@ export async function recoverSessionEntryFromRestartTombstone(params: {
         applySessionEntryMaintenance(database, {
           activeSessionKey: successorTarget.canonicalKey,
           archiveDirectory: resolveSqliteTranscriptArchiveDirectory(resolved),
+          env: resolved.env,
           skipMaintenance: true,
           storePath: params.storePath,
         }),

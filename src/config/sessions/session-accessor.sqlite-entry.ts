@@ -628,6 +628,7 @@ async function patchSqliteSessionEntrySnapshot<TSnapshot>(
         applySessionEntryMaintenance(writeDatabase, {
           activeSessionKey: sessionKey,
           archiveDirectory: resolveSqliteTranscriptArchiveDirectory(resolved),
+          env: resolved.env,
           maintenanceConfig: options.maintenanceConfig,
           skipMaintenance: options.skipMaintenance,
           storePath: params.storePath,

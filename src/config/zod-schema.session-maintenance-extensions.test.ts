@@ -6,6 +6,8 @@ describe("SessionSchema maintenance extensions", () => {
   it("accepts valid maintenance extensions", () => {
     const result = SessionSchema.safeParse({
       maintenance: {
+        preserveRecent: "72h",
+        preserveActiveWorktrees: true,
         resetArchiveRetention: "14d",
         maxDiskBytes: "500mb",
         highWaterBytes: "350mb",
@@ -22,6 +24,19 @@ describe("SessionSchema maintenance extensions", () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it("accepts disabling recent-session preservation", () => {
+    expect(SessionSchema.safeParse({ maintenance: { preserveRecent: false } }).success).toBe(true);
+  });
+
+  it.each([0, "0h", "0d", "0ms", "0", "0s", "0m"])(
+    "rejects zero-value preserveRecent: %s",
+    (preserveRecent) => {
+      const result = SessionSchema.safeParse({ maintenance: { preserveRecent } });
+      expect(result.success).toBe(false);
+      expect(result.error?.issues[0]?.path).toContain("preserveRecent");
+    },
+  );
 
   it("accepts disabling the session disk budget", () => {
     const result = SessionSchema.safeParse({

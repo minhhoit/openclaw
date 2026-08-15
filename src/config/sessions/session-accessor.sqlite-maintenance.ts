@@ -68,6 +68,7 @@ function hasStaleSqliteSessionEntryCandidate(
   database: OpenClawAgentDatabase,
   pruneAfterMs: number,
   preserveKeys: ReadonlySet<string> | undefined,
+  preserveRecentMs: number | null,
 ): boolean {
   const cutoffMs = Date.now() - pruneAfterMs;
   const db = getSessionKysely(database.db);
@@ -89,6 +90,7 @@ function hasStaleSqliteSessionEntryCandidate(
       key: normalizeStoreSessionKey(row.session_key),
       entry,
       preserveKeys,
+      preserveRecentMs,
     });
   });
 }
@@ -120,6 +122,7 @@ export function applySessionEntryMaintenance(
     maintenanceConfig?: ResolvedSessionMaintenanceConfig;
     skipMaintenance?: boolean;
     storePath: string;
+    env?: NodeJS.ProcessEnv | undefined;
   },
 ): SessionEntryMaintenancePlan {
   if (params.skipMaintenance) {
@@ -138,6 +141,7 @@ export function applySessionEntryMaintenance(
     database,
     maintenance.pruneAfterMs,
     preserveCandidateKeys,
+    maintenance.preserveRecentMs ?? null,
   );
   const shouldMaintainStore =
     params.forceMaintenance === true ||
@@ -163,6 +167,8 @@ export function applySessionEntryMaintenance(
       storePath: params.storePath,
       store,
       baseKeys: collectSqliteSessionMaintenanceBaseKeys(store, params.activeSessionKey),
+      env: params.env,
+      preserveActiveWorktrees: maintenance.preserveActiveWorktrees,
     }) ?? new Set<string>();
   const removedKeys = new Set<string>();
   const removedEntriesByKey = new Map<string, SessionEntry>();
@@ -186,6 +192,7 @@ export function applySessionEntryMaintenance(
       log: false,
       onPruned: rememberRemovedEntry,
       preserveKeys,
+      preserveRecentMs: maintenance.preserveRecentMs,
     });
   }
   if (
@@ -197,6 +204,7 @@ export function applySessionEntryMaintenance(
       log: false,
       onPruned: rememberRemovedEntry,
       preserveKeys,
+      preserveRecentMs: maintenance.preserveRecentMs,
     });
   }
   if (
@@ -210,6 +218,7 @@ export function applySessionEntryMaintenance(
       log: false,
       onCapped: rememberRemovedEntry,
       preserveKeys,
+      preserveRecentMs: maintenance.preserveRecentMs,
     });
   }
   for (const sessionId of readSessionGenerationIdsForKeys(database, removedKeys)) {

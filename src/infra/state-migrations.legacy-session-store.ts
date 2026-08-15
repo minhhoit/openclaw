@@ -273,17 +273,20 @@ export function loadLegacySessionStore(
       const preserveSessionKeys = collectSessionMaintenancePreserveKeysForStore({
         storePath,
         store: sessionStore,
+        preserveActiveWorktrees: maintenance.preserveActiveWorktrees,
       });
       if (shouldRunModelRunPrune({ maintenance, entryCount: beforeCount })) {
         pruneStaleModelRunEntries(sessionStore, maintenance.modelRunPruneAfterMs, {
           log: false,
           preserveKeys: preserveSessionKeys,
+          preserveRecentMs: maintenance.preserveRecentMs,
         });
       }
       if (Object.keys(sessionStore).length > maintenance.maxEntries) {
         pruneStaleEntries(sessionStore, maintenance.pruneAfterMs, {
           log: false,
           preserveKeys: preserveSessionKeys,
+          preserveRecentMs: maintenance.preserveRecentMs,
         });
         if (
           shouldRunSessionEntryMaintenance({
@@ -294,6 +297,7 @@ export function loadLegacySessionStore(
           capEntryCount(sessionStore, maintenance.maxEntries, {
             log: false,
             preserveKeys: preserveSessionKeys,
+            preserveRecentMs: maintenance.preserveRecentMs,
           });
         }
       }

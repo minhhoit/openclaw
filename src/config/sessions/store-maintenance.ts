@@ -46,6 +46,8 @@ export type ResolvedSessionMaintenanceConfig = {
   pruneAfterMs: number;
   maxEntries: number;
   modelRunPruneAfterMs: number;
+  preserveRecentMs?: number | null;
+  preserveActiveWorktrees?: boolean;
   resetArchiveRetentionMs: number | null;
   maxDiskBytes: number | null;
   highWaterBytes: number | null;
@@ -53,9 +55,14 @@ export type ResolvedSessionMaintenanceConfig = {
 
 export type ResolvedSessionMaintenanceConfigInput = Omit<
   ResolvedSessionMaintenanceConfig,
-  "modelRunPruneAfterMs"
+  "modelRunPruneAfterMs" | "preserveRecentMs" | "preserveActiveWorktrees"
 > &
-  Partial<Pick<ResolvedSessionMaintenanceConfig, "modelRunPruneAfterMs">>;
+  Partial<
+    Pick<
+      ResolvedSessionMaintenanceConfig,
+      "modelRunPruneAfterMs" | "preserveRecentMs" | "preserveActiveWorktrees"
+    >
+  >;
 
 function resolvePruneAfterMs(maintenance?: SessionMaintenanceConfig): number {
   const raw = maintenance?.pruneAfter;
@@ -87,6 +94,18 @@ function resolveResetArchiveRetentionMs(
   }
   try {
     return parseDurationMs(normalized, { defaultUnit: "d" });
+  } catch {
+    return null;
+  }
+}
+
+function resolvePreserveRecentMs(maintenance?: SessionMaintenanceConfig): number | null {
+  const raw = maintenance?.preserveRecent;
+  if (raw === false || raw === undefined) {
+    return null;
+  }
+  try {
+    return parseDurationMs(normalizeStringifiedOptionalString(raw) ?? "", { defaultUnit: "d" });
   } catch {
     return null;
   }
@@ -156,6 +175,8 @@ export function resolveMaintenanceConfigFromInput(
     pruneAfterMs,
     maxEntries: maintenance?.maxEntries ?? DEFAULT_SESSION_MAX_ENTRIES,
     modelRunPruneAfterMs: DEFAULT_MODEL_RUN_PRUNE_AFTER_MS,
+    preserveRecentMs: resolvePreserveRecentMs(maintenance),
+    preserveActiveWorktrees: maintenance?.preserveActiveWorktrees === true,
     resetArchiveRetentionMs: resolveResetArchiveRetentionMs(maintenance),
     maxDiskBytes,
     highWaterBytes: resolveHighWaterBytes(maintenance, maxDiskBytes),
@@ -168,6 +189,8 @@ export function normalizeResolvedMaintenanceConfigInput(
   return {
     ...maintenance,
     modelRunPruneAfterMs: maintenance.modelRunPruneAfterMs ?? DEFAULT_MODEL_RUN_PRUNE_AFTER_MS,
+    preserveRecentMs: maintenance.preserveRecentMs ?? null,
+    preserveActiveWorktrees: maintenance.preserveActiveWorktrees ?? false,
   };
 }
 
@@ -253,13 +276,21 @@ export function pruneStaleEntries(
     log?: boolean;
     onPruned?: (params: { key: string; entry: SessionEntry }) => void;
     preserveKeys?: ReadonlySet<string>;
+    preserveRecentMs?: number | null;
   } = {},
 ): number {
   const maxAgeMs = overrideMaxAgeMs ?? resolveMaintenanceConfigFromInput().pruneAfterMs;
   const cutoffMs = Date.now() - maxAgeMs;
   let pruned = 0;
   for (const [key, entry] of Object.entries(store)) {
-    if (shouldPreserveMaintenanceEntry({ key, entry, preserveKeys: opts.preserveKeys })) {
+    if (
+      shouldPreserveMaintenanceEntry({
+        key,
+        entry,
+        preserveKeys: opts.preserveKeys,
+        preserveRecentMs: opts.preserveRecentMs,
+      })
+    ) {
       continue;
     }
     if (entry?.updatedAt != null && entry.updatedAt < cutoffMs) {
@@ -286,6 +317,7 @@ export function pruneStaleModelRunEntries(
     log?: boolean;
     onPruned?: (params: { key: string; entry: SessionEntry }) => void;
     preserveKeys?: ReadonlySet<string>;
+    preserveRecentMs?: number | null;
   } = {},
 ): number {
   if (overrideMaxAgeMs == null) {
@@ -294,7 +326,14 @@ export function pruneStaleModelRunEntries(
   const cutoffMs = Date.now() - overrideMaxAgeMs;
   let pruned = 0;
   for (const [key, entry] of Object.entries(store)) {
-    if (shouldPreserveMaintenanceEntry({ key, entry, preserveKeys: opts.preserveKeys })) {
+    if (
+      shouldPreserveMaintenanceEntry({
+        key,
+        entry,
+        preserveKeys: opts.preserveKeys,
+        preserveRecentMs: opts.preserveRecentMs,
+      })
+    ) {
       continue;
     }
     if (!isGatewayModelRunSessionKey(key)) {
@@ -364,6 +403,7 @@ function isSyntheticSessionMaintenanceKey(sessionKey: string): boolean {
   const rest = normalizeLowercaseStringOrEmpty(parsed?.rest ?? sessionKey);
   // ACP bridge sessions use normal model dispatch, but remain synthetic and disposable.
   return (
+    isGatewayModelRunSessionKey(sessionKey) ||
     isSubagentSessionKey(sessionKey) ||
     isAcpSessionKey(sessionKey) ||
     isCronSessionKey(sessionKey) ||
@@ -423,10 +463,28 @@ function isProtectedSessionMaintenanceEntry(
   return chatType === "group" || chatType === "channel" || chatType === "thread";
 }
 
+function isRecentlyActiveInteractiveSession(
+  key: string,
+  entry: SessionEntry | undefined,
+  preserveRecentMs: number | null | undefined,
+): boolean {
+  if (preserveRecentMs == null || isSyntheticSessionMaintenanceKey(key)) {
+    return false;
+  }
+  const activityAt = Math.max(
+    entry?.lastInteractionAt ?? 0,
+    entry?.lastActivityAt ?? 0,
+    entry?.sessionStartedAt ?? 0,
+    entry?.updatedAt ?? 0,
+  );
+  return activityAt > 0 && Date.now() - activityAt <= preserveRecentMs;
+}
+
 export function shouldPreserveMaintenanceEntry(params: {
   key: string;
   entry: SessionEntry | undefined;
   preserveKeys?: ReadonlySet<string>;
+  preserveRecentMs?: number | null;
 }): boolean {
   // Archived and pinned sessions are user-retained; only an explicit user action may release them.
   if (params.entry?.archivedAt !== undefined || params.entry?.pinnedAt !== undefined) {
@@ -439,6 +497,7 @@ export function shouldPreserveMaintenanceEntry(params: {
   return (
     params.entry?.modelSelectionLocked === true ||
     params.preserveKeys?.has(params.key) === true ||
+    isRecentlyActiveInteractiveSession(params.key, params.entry, params.preserveRecentMs) ||
     isProtectedSessionMaintenanceEntry(params.key, params.entry)
   );
 }
@@ -447,6 +506,7 @@ function selectSessionEntryCapVictims(
   store: Record<string, SessionEntry>,
   maxEntries: number,
   preserveKeys?: ReadonlySet<string>,
+  preserveRecentMs?: number | null,
 ): string[] {
   const keys = Object.keys(store);
   const overflow = keys.length - Math.max(0, maxEntries);
@@ -457,7 +517,13 @@ function selectSessionEntryCapVictims(
   // All persisted rows consume the cap, but protected rows are never victims. If protected rows
   // alone exceed the cap, maintenance removes every eligible row and leaves the excess intact.
   const eligibleKeys = keys.filter(
-    (key) => !shouldPreserveMaintenanceEntry({ key, entry: store[key], preserveKeys }),
+    (key) =>
+      !shouldPreserveMaintenanceEntry({
+        key,
+        entry: store[key],
+        preserveKeys,
+        preserveRecentMs,
+      }),
   );
   const victimCount = Math.min(overflow, eligibleKeys.length);
   if (victimCount === 0) {
@@ -477,6 +543,7 @@ export function getActiveSessionMaintenanceWarning(params: {
   maxEntries: number;
   nowMs?: number;
   preserveKeys?: ReadonlySet<string>;
+  preserveRecentMs?: number | null;
 }): SessionMaintenanceWarning | null {
   const activeSessionKey = params.activeSessionKey.trim();
   if (!activeSessionKey) {
@@ -491,6 +558,7 @@ export function getActiveSessionMaintenanceWarning(params: {
       key: activeSessionKey,
       entry: activeEntry,
       preserveKeys: params.preserveKeys,
+      preserveRecentMs: params.preserveRecentMs,
     })
   ) {
     return null;
@@ -503,6 +571,7 @@ export function getActiveSessionMaintenanceWarning(params: {
     params.store,
     params.maxEntries,
     params.preserveKeys,
+    params.preserveRecentMs,
   ).includes(activeSessionKey);
 
   if (!wouldPrune && !wouldCap) {
@@ -533,9 +602,15 @@ export function capEntryCount(
     log?: boolean;
     onCapped?: (params: { key: string; entry: SessionEntry }) => void;
     preserveKeys?: ReadonlySet<string>;
+    preserveRecentMs?: number | null;
   } = {},
 ): number {
-  const toRemove = selectSessionEntryCapVictims(store, maxEntries, opts.preserveKeys);
+  const toRemove = selectSessionEntryCapVictims(
+    store,
+    maxEntries,
+    opts.preserveKeys,
+    opts.preserveRecentMs,
+  );
   if (toRemove.length === 0) {
     return 0;
   }

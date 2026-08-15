@@ -216,6 +216,17 @@ Maintenance preserves durable external conversation pointers, including group
 sessions and thread-scoped chat sessions, while still allowing synthetic cron,
 hook, heartbeat, ACP, and sub-agent entries to age out.
 
+Shared or high-volume installations can opt into additional protection:
+
+- `session.maintenance.preserveRecent: "72h"` protects interactive sessions
+  active within the configured duration. Synthetic model-run, cron, hook,
+  heartbeat, ACP, and sub-agent rows remain eligible for bounded cleanup.
+- `session.maintenance.preserveActiveWorktrees: true` protects sessions until
+  the managed-worktree registry marks their checkout removed.
+
+Both settings are disabled when omitted, preserving the normal oldest-first
+policy for personal installations.
+
 Archived and pinned sessions are user-protected and exempt from every automatic
 maintenance path, including age pruning, entry caps, model-run cleanup, and
 disk-budget eviction. They remain protected until you unarchive, unpin, or

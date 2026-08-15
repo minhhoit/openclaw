@@ -171,6 +171,7 @@ export async function applySessionStoreProjection<T>(params: {
           applySessionEntryMaintenance(transactionDb, {
             activeSessionKey: params.activeSessionKey ?? "",
             archiveDirectory: resolveSqliteTranscriptArchiveDirectory(resolved),
+            env: resolved.env,
             skipMaintenance: params.skipMaintenance,
             storePath: params.storePath,
           }),
@@ -408,6 +409,7 @@ export async function applySessionEntryLifecycleMutation(params: {
         applySessionEntryMaintenance(transactionDb, {
           activeSessionKey: params.activeSessionKey ?? "",
           archiveDirectory: resolveSqliteTranscriptArchiveDirectory(resolved),
+          env: resolved.env,
           forceMaintenance: params.maintenanceOverride !== undefined,
           maintenanceConfig: params.maintenanceOverride
             ? { ...resolveMaintenanceConfig(), ...params.maintenanceOverride }
@@ -532,6 +534,7 @@ export async function purgeDeletedAgentSessionEntries(
         applySessionEntryMaintenance(transactionDb, {
           activeSessionKey: "",
           archiveDirectory: resolveSqliteTranscriptArchiveDirectory(resolved),
+          env: resolved.env,
           storePath: params.storePath,
         }),
       );

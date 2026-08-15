@@ -6,6 +6,7 @@ import {
   readPersistedAuthProfileStateRaw,
   writePersistedAuthProfileStateRaw,
 } from "../../agents/auth-profiles/sqlite.js";
+import { insertRegistryWorktree, updateRegistryWorktree } from "../../agents/worktrees/registry.js";
 import { executeSqliteQueryTakeFirstSync, getNodeSqliteKysely } from "../../infra/kysely-sync.js";
 import { beginSessionWorkAdmission } from "../../sessions/session-lifecycle-admission.js";
 import { onSessionTranscriptUpdate } from "../../sessions/transcript-events.js";
@@ -1535,7 +1536,7 @@ describe("sqlite session normalization", () => {
       sessionKey,
       storePath: paths.sqlitePath,
     });
-    const oldUpdatedAt = Date.now() - 2 * 24 * 60 * 60 * 1000;
+    const oldUpdatedAt = Date.now() - 4 * 24 * 60 * 60 * 1000;
 
     await patchSessionEntryCore(
       scopeFor("agent:main:stale"),
@@ -1656,13 +1657,14 @@ describe("sqlite session normalization", () => {
     ).toEqual(["agent:main:newer", "agent:main:newest"]);
   });
 
-  it("counts protected SQLite rows while preserving them during write-triggered capping", async () => {
+  it("preserves recent SQLite entries and transcripts during write-triggered capping", async () => {
     vi.mocked(getRuntimeConfig).mockReturnValue({
       session: {
         maintenance: {
           mode: "enforce",
           pruneAfter: "365d",
           maxEntries: 2,
+          preserveRecent: "72h",
         },
       },
     });
@@ -1732,7 +1734,12 @@ describe("sqlite session normalization", () => {
         env,
         storePath: paths.sqlitePath,
       }).map((summary) => summary.sessionKey),
-    ).toEqual(["agent:main:archived-1", "agent:main:maintenance-trigger"]);
+    ).toEqual([
+      "agent:main:archived-1",
+      "agent:main:maintenance-trigger",
+      "agent:main:recent-dashboard-1",
+      "agent:main:recent-dashboard-2",
+    ]);
     await expect(
       loadTranscriptEvents({
         agentId: "main",
@@ -1740,7 +1747,7 @@ describe("sqlite session normalization", () => {
         sessionId: recentSessionId,
         storePath: paths.sqlitePath,
       }),
-    ).resolves.toEqual([]);
+    ).resolves.toEqual([recentTranscriptEvent]);
   });
 
   it("preserves pinned SQLite entries and transcripts during write-triggered capping", async () => {
@@ -1819,6 +1826,126 @@ describe("sqlite session normalization", () => {
         storePath: paths.sqlitePath,
       }),
     ).resolves.toEqual([pinnedTranscriptEvent]);
+  });
+
+  it("preserves SQLite sessions while their managed worktree remains active", async () => {
+    vi.mocked(getRuntimeConfig).mockReturnValue({
+      session: {
+        maintenance: {
+          mode: "enforce",
+          pruneAfter: "365d",
+          maxEntries: 1,
+          preserveActiveWorktrees: true,
+        },
+      },
+    });
+    const env = { ...process.env, OPENCLAW_STATE_DIR: paths.stateDir };
+    const scopeFor = (sessionKey: string) => ({
+      agentId: "main",
+      env,
+      sessionKey,
+      storePath: paths.sqlitePath,
+    });
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const worktreeKey = "agent:main:dashboard:worktree-owned";
+    const worktreeId = "worktree-owned-session";
+    const worktreeSessionId = "worktree-owned-transcript";
+    const worktreeTranscriptEvent = {
+      id: "worktree-owned-event",
+      timestamp: new Date(now - 10 * dayMs).toISOString(),
+      type: "metadata",
+    };
+    insertRegistryWorktree(
+      env,
+      {
+        id: worktreeId,
+        name: "worktree-owned",
+        repoFingerprint: "repo-fingerprint",
+        repoRoot: paths.tempDir,
+        path: path.join(paths.tempDir, "worktree-owned"),
+        branch: "openclaw/worktree-owned",
+        baseRef: "HEAD",
+        ownerKind: "session",
+        ownerId: worktreeKey,
+        createdAt: now - 10 * dayMs,
+        lastActiveAt: now - 10 * dayMs,
+      },
+      { provisionedPaths: [] },
+    );
+    await patchSessionEntryCore(
+      scopeFor(worktreeKey),
+      () => ({
+        sessionId: worktreeSessionId,
+        updatedAt: now - 10 * dayMs,
+        worktree: {
+          id: worktreeId,
+          branch: "openclaw/worktree-owned",
+          repoRoot: paths.tempDir,
+        },
+      }),
+      {
+        fallbackEntry: {
+          sessionId: worktreeSessionId,
+          updatedAt: now - 10 * dayMs,
+          worktree: {
+            id: worktreeId,
+            branch: "openclaw/worktree-owned",
+            repoRoot: paths.tempDir,
+          },
+        },
+        replaceEntry: true,
+        skipMaintenance: true,
+      },
+    );
+    await appendTranscriptEvent(
+      { ...scopeFor(worktreeKey), sessionId: worktreeSessionId },
+      worktreeTranscriptEvent,
+    );
+    await patchSessionEntryCore(
+      scopeFor("agent:main:old-unprotected"),
+      () => ({ sessionId: "old-unprotected", updatedAt: now - 9 * dayMs }),
+      {
+        fallbackEntry: { sessionId: "old-unprotected", updatedAt: now - 9 * dayMs },
+        replaceEntry: true,
+        skipMaintenance: true,
+      },
+    );
+    const triggerKey = "agent:main:maintenance-trigger";
+    await patchSessionEntryCore(
+      scopeFor(triggerKey),
+      () => ({ sessionId: "maintenance-trigger", updatedAt: now }),
+      {
+        fallbackEntry: { sessionId: "maintenance-trigger", updatedAt: now },
+        replaceEntry: true,
+      },
+    );
+
+    expect(loadSessionEntry(scopeFor(worktreeKey))).toMatchObject({
+      sessionId: worktreeSessionId,
+      worktree: { id: worktreeId },
+    });
+    await expect(
+      loadTranscriptEvents({
+        agentId: "main",
+        env,
+        sessionId: worktreeSessionId,
+        storePath: paths.sqlitePath,
+      }),
+    ).resolves.toEqual([worktreeTranscriptEvent]);
+
+    updateRegistryWorktree(env, worktreeId, { removedAt: now + 1 });
+    await patchSessionEntryCore(scopeFor(triggerKey), () => ({ model: "gpt-5.6-luna" }));
+
+    expect(loadSessionEntry(scopeFor(worktreeKey))).toBeUndefined();
+    await expect(
+      loadTranscriptEvents({
+        agentId: "main",
+        env,
+        sessionId: worktreeSessionId,
+        storePath: paths.sqlitePath,
+      }),
+    ).resolves.toEqual([]);
   });
 
   it("preserves an admitted SQLite session when another session triggers maintenance", async () => {

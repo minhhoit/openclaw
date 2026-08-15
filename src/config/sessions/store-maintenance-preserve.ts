@@ -1,4 +1,5 @@
 // Maintenance preserve providers protect runtime-owned sessions from pruning/capping.
+import { listRegistryWorktreesForMigration } from "../../agents/worktrees/registry.js";
 import { collectActiveSessionWorkAdmissionIdentities } from "../../sessions/session-lifecycle-admission.js";
 import { normalizeStoreSessionKey } from "./store-entry.js";
 import type { SessionEntry } from "./types.js";
@@ -80,11 +81,39 @@ export function collectActiveSessionWorkAdmissionKeys(params: {
   return keys.size > 0 ? keys : undefined;
 }
 
+/** Resolves sessions bound to managed worktrees that have not been removed. */
+export function collectActiveManagedWorktreeSessionKeys(params: {
+  store: Record<string, SessionEntry>;
+  env?: NodeJS.ProcessEnv | undefined;
+}): Set<string> | undefined {
+  const liveWorktrees = listRegistryWorktreesForMigration(params.env ?? process.env).filter(
+    (record) => record.removedAt === undefined,
+  );
+  if (liveWorktrees.length === 0) {
+    return undefined;
+  }
+  const liveWorktreeIds = new Set(liveWorktrees.map((record) => record.id));
+  const keys = new Set<string>();
+  for (const record of liveWorktrees) {
+    if (record.ownerKind === "session") {
+      addSessionMaintenancePreserveKey(keys, record.ownerId);
+    }
+  }
+  for (const [key, entry] of Object.entries(params.store)) {
+    if (entry.worktree?.id && liveWorktreeIds.has(entry.worktree.id)) {
+      addSessionMaintenancePreserveKey(keys, key);
+    }
+  }
+  return keys.size > 0 ? keys : undefined;
+}
+
 /** Collects every runtime and active-work key protected from automatic maintenance. */
 export function collectSessionMaintenancePreserveKeysForStore(params: {
   storePath: string;
   store: Record<string, SessionEntry>;
   baseKeys?: Iterable<string | undefined>;
+  env?: NodeJS.ProcessEnv | undefined;
+  preserveActiveWorktrees?: boolean;
 }): Set<string> | undefined {
   const keys = collectSessionMaintenancePreserveKeys(params.baseKeys) ?? new Set<string>();
   for (const key of collectActiveSessionWorkAdmissionKeys({
@@ -92,6 +121,14 @@ export function collectSessionMaintenancePreserveKeysForStore(params: {
     store: params.store,
   }) ?? []) {
     keys.add(key);
+  }
+  if (params.preserveActiveWorktrees === true) {
+    for (const key of collectActiveManagedWorktreeSessionKeys({
+      store: params.store,
+      env: params.env,
+    }) ?? []) {
+      keys.add(key);
+    }
   }
   return keys.size > 0 ? keys : undefined;
 }
